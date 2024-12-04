@@ -1,10 +1,11 @@
-// ignore: file_names
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+void main() async {
+  // Load .env variables
+  await dotenv.load();
   runApp(const MyApp());
 }
 
@@ -28,12 +29,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final String apiKey = "${dotenv.env['API_KEY']}";
-  String city = "";
+  final String apiKey = dotenv.env['API_KEY'] ?? ""; // Ensure API key is loaded
+  String city = "Colombo"; // Default city
   String temperature = "";
   String description = "";
   String windSpeed = "";
   String errorMessage = "";
+  String weatherIcon = "assets/images/sunny.png"; // Default icon for weather
 
   Future<void> fetchWeather(String cityName) async {
     final url = Uri.parse(
@@ -42,10 +44,6 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final response = await http.get(url);
 
-      // Debug logs for response
-      print("Response status: ${response.statusCode}");
-      print("Response body: ${response.body}");
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -53,7 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
           temperature = "${data['main']['temp']} °C";
           description = data['weather'][0]['description'];
           windSpeed = "${data['wind']['speed']} m/s";
-          errorMessage = ""; // Clear any previous errors
+          errorMessage = "";
+
+          // Update weather icon based on description
+          weatherIcon = getWeatherIcon(description);
         });
       } else {
         final errorData = json.decode(response.body);
@@ -62,8 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
           temperature = "";
           description = "";
           windSpeed = "";
+          weatherIcon = "assets/images/unknown.png"; // Default error icon
           errorMessage =
-              "Error: ${errorData['message'] ?? 'Unknown error occurred'}";
+          "Error: ${errorData['message'] ?? 'Unknown error occurred'}";
         });
       }
     } catch (e) {
@@ -72,9 +74,32 @@ class _HomeScreenState extends State<HomeScreen> {
         temperature = "";
         description = "";
         windSpeed = "";
+        weatherIcon = "assets/images/unknown.png"; // Default error icon
         errorMessage = "Error: ${e.toString()}";
       });
     }
+  }
+
+  String getWeatherIcon(String description) {
+    if (description.contains("clear")) {
+      return "assets/images/sunny.png";
+    } else if (description.contains("cloud")) {
+      return "assets/images/cloudy.png";
+    } else if (description.contains("rain")) {
+      return "assets/images/rainy.png";
+    } else if (description.contains("snow")) {
+      return "assets/images/snowy.png";
+    } else if (description.contains("storm")) {
+      return "assets/images/storm.png";
+    } else {
+      return "assets/images/unknown.png";
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchWeather(city); // Fetch default city weather on startup
   }
 
   @override
@@ -85,6 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.deepPurple,
       ),
       body: Container(
+        width: double.infinity, // Ensure container spans full width
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -98,41 +124,56 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center, // Center content
           children: [
-            // Buttons for cities
-            for (var cityName in ['New York', 'London', 'Tokyo', 'Colombo', 'Dubai'])
-              ElevatedButton(
-                onPressed: () => fetchWeather(cityName),
-                child: Text(cityName),
+            // Weather Icon
+            if (weatherIcon.isNotEmpty)
+              Image.asset(
+                weatherIcon,
+                height: 250,
+                width: 250,
+                // Increased size
               ),
-            const SizedBox(height: 20),
             // Weather information display
             if (city.isNotEmpty && errorMessage.isEmpty)
               Column(
                 children: [
                   Text(
                     "City: $city",
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFFF700),
+                    ),
                   ),
+                  const SizedBox(height: 10), // Adds margin below the city text
                   Text(
                     "Temperature: $temperature",
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     "Description: $description",
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     "Wind Speed: $windSpeed",
-                    style: const TextStyle(fontSize: 18, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
             if (errorMessage.isNotEmpty)
               Column(
                 children: [
-                  const SizedBox(height: 20),
                   Text(
                     errorMessage,
                     style: const TextStyle(
@@ -143,6 +184,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
+            // City Selection Buttons
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                for (var cityName in ['New York', 'London', 'Tokyo', 'Colombo', 'Dubai'])
+                  ElevatedButton(
+                    onPressed: () => fetchWeather(cityName),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black, // Set button background color to black
+                      foregroundColor: Colors.white, // Set text color to white
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10), // Optional rounded corners
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ), // Adjust padding for better look
+                    ),
+                    child: Text(cityName),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
